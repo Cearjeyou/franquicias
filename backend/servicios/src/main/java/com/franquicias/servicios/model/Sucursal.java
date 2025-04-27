@@ -7,16 +7,20 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Document(collection = "sucursales")
 public class Sucursal {
-    @Id
-    private String id;
+    @Builder.Default
+    private String id = UUID.randomUUID().toString();
+
     private String nombre;
-    private List<String> productosId;
+
+    @Builder.Default
+    private List<Producto> productos = new ArrayList<>();
 }

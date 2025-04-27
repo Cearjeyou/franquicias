@@ -14,6 +14,8 @@ public class FranquiciaRouter {
         return RouterFunctions.route()
                 .POST("/franquicias", franquiciaHandler::crearFranquicia)
                 .PUT("/franquicias/{id}", franquiciaHandler::actualizarFranquicia)
+                .POST("/franquicias/{idFranquicia}/sucursales", franquiciaHandler::crearSucursal)
+                .PUT("/franquicias/{idFranquicia}/sucursales/{idSucursal}", franquiciaHandler::actualizarSucursal)
                 .build();
     }
 }
