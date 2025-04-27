@@ -1,6 +1,7 @@
 package com.franquicias.servicios.handler;
 
 import com.franquicias.servicios.dto.franquicia.FranquiciaRequest;
+import com.franquicias.servicios.dto.sucursal.SucursalRequest;
 import com.franquicias.servicios.service.franquicia.FranquiciaService;
 import com.mongodb.internal.connection.Server;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,25 @@ public class FranquiciaHandler {
         return serverRequest.bodyToMono(FranquiciaRequest.class)
                 .flatMap(franquiciaRequest -> franquiciaService.actualizarFranquicia(id, franquiciaRequest))
                 .flatMap(franquiciaDTO -> ServerResponse.ok().bodyValue(franquiciaDTO))
+                .switchIfEmpty(ServerResponse.badRequest().build())
+                .onErrorResume(e -> ServerResponse.badRequest().bodyValue(e.getMessage()));
+    }
+
+    public Mono<ServerResponse> crearSucursal(ServerRequest serverRequest) {
+        String idFranquicia = serverRequest.pathVariable("idFranquicia");
+        return serverRequest.bodyToMono(SucursalRequest.class)
+                .flatMap(sucursalRequest -> franquiciaService.crearSucursal(sucursalRequest, idFranquicia))
+                .flatMap(sucursalDTO -> ServerResponse.ok().bodyValue(sucursalDTO))
+                .switchIfEmpty(ServerResponse.badRequest().build())
+                .onErrorResume(e -> ServerResponse.badRequest().bodyValue(e.getMessage()));
+    }
+
+    public Mono<ServerResponse> actualizarSucursal(ServerRequest serverRequest) {
+        String idFranquicia = serverRequest.pathVariable("idFranquicia");
+        String idSucursal = serverRequest.pathVariable("idSucursal");
+        return serverRequest.bodyToMono(SucursalRequest.class)
+                .flatMap(sucursalRequest -> franquiciaService.actualizarSucursal(idSucursal, sucursalRequest, idFranquicia))
+                .flatMap(sucursalDTO -> ServerResponse.ok().bodyValue(sucursalDTO))
                 .switchIfEmpty(ServerResponse.badRequest().build())
                 .onErrorResume(e -> ServerResponse.badRequest().bodyValue(e.getMessage()));
     }
