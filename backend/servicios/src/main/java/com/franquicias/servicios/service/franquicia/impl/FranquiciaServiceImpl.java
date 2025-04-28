@@ -15,6 +15,8 @@ import com.franquicias.servicios.model.Producto;
 import com.franquicias.servicios.model.Sucursal;
 import com.franquicias.servicios.repository.FranquiciaRepository;
 import com.franquicias.servicios.service.franquicia.FranquiciaService;
+import com.franquicias.servicios.exceptions.ElementoNoEncontradoException;
+import com.franquicias.servicios.exceptions.ElementosDuplicadosException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.stereotype.Service;
@@ -40,8 +42,15 @@ public class FranquiciaServiceImpl implements FranquiciaService {
     @Override
     public Mono<FranquiciaDTO> crearFranquicia(FranquiciaRequest franquiciaRequest) {
         Franquicia franquicia = franquicaMapper.toEntity(franquiciaRequest);
-        return franquiciaRepository.save(franquicia)
-                .map(franquicaMapper::toDTO);
+        return franquiciaRepository.existsByNombre(franquicia.getNombre())
+                .flatMap(existe -> {
+                    if (existe) {
+                        return Mono.error(new ElementosDuplicadosException("Ya existe una franquicia con el nombre " + franquicia.getNombre()));
+                    } else {
+                        return franquiciaRepository.save(franquicia)
+                                .map(franquicaMapper::toDTO);
+                    }
+                });
     }
 
     /**
@@ -54,11 +63,17 @@ public class FranquiciaServiceImpl implements FranquiciaService {
     @Override
     public Mono<FranquiciaDTO> actualizarFranquicia(String id, FranquiciaRequest franquiciaRequest) {
         return franquiciaRepository.findById(id)
-                .switchIfEmpty(Mono.error(new RuntimeException("Franquicia no encontrada")))
-                .flatMap(franquicia -> {
-                    franquicia.setNombre(franquiciaRequest.getNombre());
-                    return franquiciaRepository.save(franquicia);
-                })
+                .switchIfEmpty(Mono.error(new ElementoNoEncontradoException("No existe una franquicia con el id " + id)))
+                .flatMap(franquicia ->
+                        franquiciaRepository.existsByNombre(franquiciaRequest.getNombre())
+                        .flatMap(existe -> {
+                            if (existe && !franquicia.getNombre().equals(franquiciaRequest.getNombre())) {
+                                return Mono.error(new ElementosDuplicadosException("Ya existe una franquicia con el nombre " + franquiciaRequest.getNombre()));
+                            } else {
+                                franquicia.setNombre(franquiciaRequest.getNombre());
+                                return franquiciaRepository.save(franquicia);
+                            }
+                        }))
                 .map(franquicaMapper::toDTO);
     }
 
@@ -72,13 +87,18 @@ public class FranquiciaServiceImpl implements FranquiciaService {
     @Override
     public Mono<SucursalDTO> crearSucursal(SucursalRequest sucursalRequest, String franquiciaId) {
         return franquiciaRepository.findById(franquiciaId)
-                .switchIfEmpty(Mono.error(new RuntimeException("Franquicia no encontrada")))
-                .flatMap(franquicia -> {
-                    Sucursal sucursal = sucursalMapper.toEntity(sucursalRequest);
-                    franquicia.getSucursales().add(sucursal);
-                    return franquiciaRepository.save(franquicia)
-                            .map(franquiciaGuardada -> sucursalMapper.toDTO(sucursal, franquiciaId));
-                });
+                .switchIfEmpty(Mono.error(new ElementoNoEncontradoException("No existe una franquicia con el id " + franquiciaId)))
+                .flatMap(franquicia -> franquiciaRepository.existsByIdAndSucursalesNombre(franquiciaId, sucursalRequest.getNombre())
+                        .flatMap(existe -> {
+                            if (existe) {
+                                return Mono.error(new ElementosDuplicadosException("Ya existe una sucursal con el nombre " + sucursalRequest.getNombre()));
+                            } else {
+                                Sucursal sucursal = sucursalMapper.toEntity(sucursalRequest);
+                                franquicia.getSucursales().add(sucursal);
+                                return franquiciaRepository.save(franquicia)
+                                        .map(franquiciaGuardada -> sucursalMapper.toDTO(sucursal, franquiciaId));
+                            }
+                        }));
     }
 
     /**
@@ -92,17 +112,26 @@ public class FranquiciaServiceImpl implements FranquiciaService {
     @Override
     public Mono<SucursalDTO> actualizarSucursal(String sucursalId, SucursalRequest sucursalRequest, String franquiciaId) {
         return franquiciaRepository.findById(franquiciaId)
-                .switchIfEmpty(Mono.error(new RuntimeException("Franquicia no encontrada")))
+                .switchIfEmpty(Mono.error(new ElementoNoEncontradoException("No existe una franquicia con el id " + franquiciaId)))
                 .flatMap(franquicia -> {
                     Sucursal sucursal = franquicia.getSucursales().stream()
                             .filter(s -> s.getId().equals(sucursalId))
-                            .findFirst().orElseThrow(() -> new RuntimeException("Sucursal no encontrada"));
+                            .findFirst().orElse(null);
 
-                    sucursal.setNombre(sucursalRequest.getNombre());
+                    if (sucursal == null) {
+                        return Mono.error(new ElementoNoEncontradoException("No existe una sucursal con el id " + sucursalId));
+                    }
 
-                    return franquiciaRepository.save(franquicia)
-                            .map(franquiciaGuardada -> sucursalMapper.toDTO(sucursal, franquiciaId));
-
+                    return franquiciaRepository.existsByIdAndSucursalesNombre(franquiciaId, sucursalRequest.getNombre())
+                            .flatMap(existe -> {
+                                if (existe && !sucursal.getNombre().equals(sucursalRequest.getNombre())) {
+                                    return Mono.error(new ElementosDuplicadosException("Ya existe una sucursal con el nombre " + sucursalRequest.getNombre()));
+                                } else {
+                                    sucursal.setNombre(sucursalRequest.getNombre());
+                                    return franquiciaRepository.save(franquicia)
+                                            .map(franquiciaGuardada -> sucursalMapper.toDTO(sucursal, franquiciaId));
+                                }
+                            });
                 });
     }
 
@@ -117,16 +146,29 @@ public class FranquiciaServiceImpl implements FranquiciaService {
     @Override
     public Mono<ProductoDTO> crearProducto(String sucursalId, String franquiciaId, ProductoRequest productoRequest) {
         return franquiciaRepository.findById(franquiciaId)
-                .switchIfEmpty(Mono.error(new RuntimeException("Franquicia no encontrada")))
+                .switchIfEmpty(Mono.error(new ElementoNoEncontradoException("No existe una franquicia con el id " + franquiciaId)))
                 .flatMap(franquicia -> {
                     Sucursal sucursal = franquicia.getSucursales().stream()
                             .filter(s -> s.getId().equals(sucursalId))
-                            .findFirst().orElseThrow(() -> new RuntimeException("Sucursal no encontrada"));
-                    Producto producto = productoMapper.toEntity(productoRequest);
-                    sucursal.getProductos().add(producto);
+                            .findFirst().orElse(null);
 
-                    return franquiciaRepository.save(franquicia)
-                            .map(franquiciaGuardada -> productoMapper.toDTO(producto, sucursalId, franquiciaId));
+                    if (sucursal == null) {
+                        return Mono.error(new ElementoNoEncontradoException("No existe una sucursal con el id " + sucursalId));
+                    }
+
+                    Producto producto = productoMapper.toEntity(productoRequest);
+
+                    return franquiciaRepository.existsByIdAndSucursalesIdAndSucursalesProductosNombre(franquiciaId, sucursalId, productoRequest.getNombre())
+                            .flatMap(existe -> {
+                                if (existe) {
+                                    return Mono.error(new ElementosDuplicadosException("Ya existe un producto con el nombre " + productoRequest.getNombre()));
+                                }
+
+                                sucursal.getProductos().add(producto);
+
+                                return franquiciaRepository.save(franquicia)
+                                        .map(franquiciaGuardada -> productoMapper.toDTO(producto, sucursalId, franquiciaId));
+                            });
                 });
     }
 
@@ -141,15 +183,15 @@ public class FranquiciaServiceImpl implements FranquiciaService {
     @Override
     public Mono<Void> eliminarProducto(String sucursalId, String franquiciaId, String productoId) {
         return franquiciaRepository.findById(franquiciaId)
-                .switchIfEmpty(Mono.error(new RuntimeException("Franquicia no encontrada")))
+                .switchIfEmpty(Mono.error(new ElementoNoEncontradoException("No existe una franquicia con el id " + franquiciaId)))
                 .flatMap(franquicia -> {
                     Sucursal sucursal = franquicia.getSucursales().stream()
                             .filter(s -> s.getId().equals(sucursalId))
-                            .findFirst().orElseThrow(() -> new RuntimeException("Sucursal no encontrada"));
+                            .findFirst().orElseThrow(() -> new ElementoNoEncontradoException("No existe una sucursal con el id " + sucursalId));
 
                     Producto producto = sucursal.getProductos().stream()
                             .filter(p -> p.getId().equals(productoId))
-                            .findFirst().orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+                            .findFirst().orElseThrow(() -> new ElementoNoEncontradoException("No existe un producto con el id " + productoId));
 
                     sucursal.getProductos().remove(producto);
                     return franquiciaRepository.save(franquicia).then();
@@ -168,15 +210,15 @@ public class FranquiciaServiceImpl implements FranquiciaService {
     @Override
     public Mono<ProductoDTO> actualizarStockProducto(String sucursalId, String franquiciaId, String productoId, ProductoRequest productoRequest) {
         return franquiciaRepository.findById(franquiciaId)
-                .switchIfEmpty(Mono.error(new RuntimeException("Franquicia no encontrada")))
+                .switchIfEmpty(Mono.error(new ElementoNoEncontradoException("No existe una franquicia con el id " + franquiciaId)))
                 .flatMap(franquicia -> {
                     Sucursal sucursal = franquicia.getSucursales().stream()
                             .filter(s -> s.getId().equals(sucursalId))
-                            .findFirst().orElseThrow(() -> new RuntimeException("Sucursal no encontrada"));
+                            .findFirst().orElseThrow(() -> new ElementoNoEncontradoException("No existe una sucursal con el id " + sucursalId));
 
                     Producto producto = sucursal.getProductos().stream()
                             .filter(p -> p.getId().equals(productoId))
-                            .findFirst().orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+                            .findFirst().orElseThrow(() -> new ElementoNoEncontradoException("No existe un producto con el id " + productoId));
 
                     producto.setStock(productoRequest.getStock());
                     return franquiciaRepository.save(franquicia)
@@ -196,19 +238,32 @@ public class FranquiciaServiceImpl implements FranquiciaService {
     @Override
     public Mono<ProductoDTO> actualizarNombreProducto(String sucursalId, String franquiciaId, String productoId, ProductoRequest productoRequest) {
         return franquiciaRepository.findById(franquiciaId)
-                .switchIfEmpty(Mono.error(new RuntimeException("Franquicia no encontrada")))
+                .switchIfEmpty(Mono.error(new ElementoNoEncontradoException("No existe una franquicia con el id " + franquiciaId)))
                 .flatMap(franquicia -> {
                     Sucursal sucursal = franquicia.getSucursales().stream()
                             .filter(s -> s.getId().equals(sucursalId))
-                            .findFirst().orElseThrow(() -> new RuntimeException("Sucursal no encontrada"));
+                            .findFirst().orElse(null);
+
+                    if (sucursal == null) {
+                        return Mono.error(new ElementoNoEncontradoException("No existe una sucursal con el id " + sucursalId));
+                    }
 
                     Producto producto = sucursal.getProductos().stream()
                             .filter(p -> p.getId().equals(productoId))
-                            .findFirst().orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+                            .findFirst().orElse(null);
 
-                    producto.setNombre(productoRequest.getNombre());
-                    return franquiciaRepository.save(franquicia)
-                            .map(franquiciaGuardada -> productoMapper.toDTO(producto, sucursalId, franquiciaId));
+                    if (producto == null) {
+                        return Mono.error(new ElementoNoEncontradoException("No existe un producto con el id " + productoId));
+                    }
+                    return franquiciaRepository.existsByIdAndSucursalesIdAndSucursalesProductosNombre(franquiciaId, sucursalId, productoRequest.getNombre())
+                            .flatMap(existe -> {
+                                if (existe && !producto.getNombre().equals(productoRequest.getNombre())) {
+                                    return Mono.error(new ElementosDuplicadosException("Ya existe un producto con el nombre " + productoRequest.getNombre()));
+                                }
+                                producto.setNombre(productoRequest.getNombre());
+                                return franquiciaRepository.save(franquicia)
+                                        .map(franquiciaGuardada -> productoMapper.toDTO(producto, sucursalId, franquiciaId));
+                            });
                 });
     }
 
@@ -221,9 +276,7 @@ public class FranquiciaServiceImpl implements FranquiciaService {
     @Override
     public Flux<ProductoSucursalDTO> obtenerProductosConMayorStock(String franquiciaId) {
         return franquiciaRepository.findById(franquiciaId)
-                .switchIfEmpty(Mono.error(new RuntimeException("Franquicia no encontrada")))
+                .switchIfEmpty(Mono.error(new ElementoNoEncontradoException("No existe una franquicia con el id " + franquiciaId)))
                 .flatMapMany((franquicia -> franquiciaRepository.findProductosConMaxStockPorSucursal(franquiciaId)));
     }
-
-
 }
