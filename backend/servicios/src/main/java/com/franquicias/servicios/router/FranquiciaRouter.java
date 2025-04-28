@@ -13,9 +13,14 @@ public class FranquiciaRouter {
     public RouterFunction<ServerResponse> franquiciaRoutes(FranquiciaHandler franquiciaHandler) {
         return RouterFunctions.route()
                 .POST("/franquicias", franquiciaHandler::crearFranquicia)
-                .PUT("/franquicias/{id}", franquiciaHandler::actualizarFranquicia)
+                .PATCH("/franquicias/{id}", franquiciaHandler::actualizarFranquicia)
                 .POST("/franquicias/{idFranquicia}/sucursales", franquiciaHandler::crearSucursal)
-                .PUT("/franquicias/{idFranquicia}/sucursales/{idSucursal}", franquiciaHandler::actualizarSucursal)
+                .PATCH("/franquicias/{idFranquicia}/sucursales/{idSucursal}", franquiciaHandler::actualizarSucursal)
+                .POST("/franquicias/{idFranquicia}/sucursales/{idSucursal}/productos", franquiciaHandler::crearProducto)
+                .DELETE("/franquicias/{idFranquicia}/sucursales/{idSucursal}/productos/{idProducto}", franquiciaHandler::eliminarProducto)
+                .PATCH("/franquicias/{idFranquicia}/sucursales/{idSucursal}/productos/{idProducto}/stock", franquiciaHandler::actualizarStockProducto)
+                .PATCH("/franquicias/{idFranquicia}/sucursales/{idSucursal}/productos/{idProducto}/nombre", franquiciaHandler::actualizarNombreProducto)
+                .GET("/franquicias/{idFranquicia}/productos-mayor-stock", franquiciaHandler::obtenerProductosConMayorStock)
                 .build();
     }
 }
