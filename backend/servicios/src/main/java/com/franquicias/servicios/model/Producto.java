@@ -19,6 +19,5 @@ public class Producto {
 
     private String nombre;
 
-    @Builder.Default
-    private Integer stock = 0;
+    private Integer stock;
 }
