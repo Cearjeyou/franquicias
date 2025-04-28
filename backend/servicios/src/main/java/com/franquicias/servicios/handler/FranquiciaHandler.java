@@ -4,7 +4,10 @@ import com.franquicias.servicios.dto.franquicia.FranquiciaRequest;
 import com.franquicias.servicios.dto.producto.ProductoRequest;
 import com.franquicias.servicios.dto.sucursal.SucursalRequest;
 import com.franquicias.servicios.service.franquicia.FranquiciaService;
+import com.franquicias.servicios.exceptions.ElementoNoEncontradoException;
+import com.franquicias.servicios.exceptions.ElementosDuplicadosException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -19,7 +22,10 @@ public class FranquiciaHandler {
         return serverRequest.bodyToMono(FranquiciaRequest.class)
                 .flatMap(franquiciaService::crearFranquicia)
                 .flatMap(franquiciaDTO -> ServerResponse.ok().bodyValue(franquiciaDTO))
-                .switchIfEmpty(ServerResponse.badRequest().build());
+                .switchIfEmpty(ServerResponse.badRequest().build()
+                .onErrorResume(ElementoNoEncontradoException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(ElementosDuplicadosException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(Exception.class, e -> ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).build()));
     }
 
     public Mono<ServerResponse> actualizarFranquicia(ServerRequest serverRequest) {
@@ -28,7 +34,9 @@ public class FranquiciaHandler {
                 .flatMap(franquiciaRequest -> franquiciaService.actualizarFranquicia(id, franquiciaRequest))
                 .flatMap(franquiciaDTO -> ServerResponse.ok().bodyValue(franquiciaDTO))
                 .switchIfEmpty(ServerResponse.badRequest().build())
-                .onErrorResume(e -> ServerResponse.badRequest().bodyValue(e.getMessage()));
+                .onErrorResume(ElementoNoEncontradoException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(ElementosDuplicadosException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(Exception.class, e -> ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
     }
 
     public Mono<ServerResponse> crearSucursal(ServerRequest serverRequest) {
@@ -37,7 +45,9 @@ public class FranquiciaHandler {
                 .flatMap(sucursalRequest -> franquiciaService.crearSucursal(sucursalRequest, idFranquicia))
                 .flatMap(sucursalDTO -> ServerResponse.ok().bodyValue(sucursalDTO))
                 .switchIfEmpty(ServerResponse.badRequest().build())
-                .onErrorResume(e -> ServerResponse.badRequest().bodyValue(e.getMessage()));
+                .onErrorResume(ElementoNoEncontradoException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(ElementosDuplicadosException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(Exception.class, e -> ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
     }
 
     public Mono<ServerResponse> actualizarSucursal(ServerRequest serverRequest) {
@@ -47,7 +57,9 @@ public class FranquiciaHandler {
                 .flatMap(sucursalRequest -> franquiciaService.actualizarSucursal(idSucursal, sucursalRequest, idFranquicia))
                 .flatMap(sucursalDTO -> ServerResponse.ok().bodyValue(sucursalDTO))
                 .switchIfEmpty(ServerResponse.badRequest().build())
-                .onErrorResume(e -> ServerResponse.badRequest().bodyValue(e.getMessage()));
+                .onErrorResume(ElementoNoEncontradoException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(ElementosDuplicadosException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(e -> ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
     }
 
     public Mono<ServerResponse> crearProducto(ServerRequest serverRequest) {
@@ -57,7 +69,9 @@ public class FranquiciaHandler {
                 .flatMap(productoRequest -> franquiciaService.crearProducto(idSucursal, idFranquicia, productoRequest))
                 .flatMap(productoDTO -> ServerResponse.ok().bodyValue(productoDTO))
                 .switchIfEmpty(ServerResponse.badRequest().build())
-                .onErrorResume(e -> ServerResponse.badRequest().bodyValue(e.getMessage()));
+                .onErrorResume(ElementoNoEncontradoException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(ElementosDuplicadosException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(Exception.class, e -> ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
     }
 
     public Mono<ServerResponse> eliminarProducto(ServerRequest serverRequest) {
@@ -66,7 +80,8 @@ public class FranquiciaHandler {
         String idProducto = serverRequest.pathVariable("idProducto");
         return franquiciaService.eliminarProducto(idSucursal, idFranquicia, idProducto)
                 .then(ServerResponse.noContent().build())
-                .onErrorResume(e -> ServerResponse.badRequest().bodyValue(e.getMessage()));
+                .onErrorResume(ElementoNoEncontradoException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(Exception.class, e -> ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
     }
 
     public Mono<ServerResponse> actualizarStockProducto(ServerRequest serverRequest) {
@@ -77,7 +92,8 @@ public class FranquiciaHandler {
                 .flatMap(productoRequest -> franquiciaService.actualizarStockProducto(idSucursal, idFranquicia, idProducto, productoRequest))
                 .flatMap(productoDTO -> ServerResponse.ok().bodyValue(productoDTO))
                 .switchIfEmpty(ServerResponse.badRequest().build())
-                .onErrorResume(e -> ServerResponse.badRequest().bodyValue(e.getMessage()));
+                .onErrorResume(ElementoNoEncontradoException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(Exception.class, e -> ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
     }
 
     public Mono<ServerResponse> actualizarNombreProducto(ServerRequest serverRequest) {
@@ -88,7 +104,9 @@ public class FranquiciaHandler {
                 .flatMap(productoRequest -> franquiciaService.actualizarNombreProducto(idSucursal, idFranquicia, idProducto, productoRequest))
                 .flatMap(productoDTO -> ServerResponse.ok().bodyValue(productoDTO))
                 .switchIfEmpty(ServerResponse.badRequest().build())
-                .onErrorResume(e -> ServerResponse.badRequest().bodyValue(e.getMessage()));
+                .onErrorResume(ElementoNoEncontradoException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(ElementosDuplicadosException.class, e -> ServerResponse.badRequest().bodyValue(e.getMessage()))
+                .onErrorResume(Exception.class, e -> ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
     }
 
     public Mono<ServerResponse> obtenerProductosConMayorStock(ServerRequest serverRequest) {

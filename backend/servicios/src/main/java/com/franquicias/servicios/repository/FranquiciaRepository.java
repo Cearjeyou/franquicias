@@ -3,8 +3,10 @@ package com.franquicias.servicios.repository;
 import com.franquicias.servicios.dto.producto.ProductoSucursalDTO;
 import com.franquicias.servicios.model.Franquicia;
 import org.springframework.data.mongodb.repository.Aggregation;
+import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface FranquiciaRepository extends ReactiveMongoRepository<Franquicia, String> {
     @Aggregation(pipeline = {
@@ -39,4 +41,11 @@ public interface FranquiciaRepository extends ReactiveMongoRepository<Franquicia
                     "} }"
     })
     Flux<ProductoSucursalDTO> findProductosConMaxStockPorSucursal(String franquiciaId);
+
+    Mono<Boolean> existsByNombre(String nombre);
+
+    Mono<Boolean> existsByIdAndSucursalesNombre(String franquiciaId, String nombreSucursal);
+
+    Mono<Boolean> existsByIdAndSucursalesIdAndSucursalesProductosNombre(String franquiciaId, String sucursalId, String productoNombre);
+
 }
